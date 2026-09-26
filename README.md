@@ -2,6 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Last Commit](https://img.shields.io/github/last-commit/Indianinnovation/rain-alert)](https://github.com/Indianinnovation/rain-alert/commits/main)
+[![Open Issues](https://img.shields.io/github/issues/Indianinnovation/rain-alert)](https://github.com/Indianinnovation/rain-alert/issues)
 
 A small Python service that checks a short-range rain forecast every 5 minutes and sends a push notification to your phone roughly 30–60 minutes before rain is expected, so you have time to cover or move your plants.
 
