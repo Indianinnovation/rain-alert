@@ -1,0 +1,56 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Rain Alert - checks Open-Meteo every 5 minutes and pushes a ntfy.sh notification before rain hits.
+
+Parameters:
+  Lat:
+    Type: String
+    Description: Latitude of the location to monitor.
+  Lon:
+    Type: String
+    Description: Longitude of the location to monitor.
+  NtfyTopic:
+    Type: String
+    Description: ntfy.sh topic to publish alerts to.
+  LookaheadMin:
+    Type: Number
+    Default: 45
+  MinPrecipMm:
+    Type: Number
+    Default: 0.1
+  CooldownHours:
+    Type: Number
+    Default: 3
+  SsmParamName:
+    Type: String
+    Default: /rain-alert/last
+
+Resources:
+  RainAlertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.12
+      Timeout: 30
+      MemorySize: 128
+      Environment:
+        Variables:
+          LAT: !Ref Lat
+          LON: !Ref Lon
+          NTFY_TOPIC: !Ref NtfyTopic
+          LOOKAHEAD_MIN: !Ref LookaheadMin
+          MIN_PRECIP_MM: !Ref MinPrecipMm
+          COOLDOWN_HOURS: !Ref CooldownHours
+          SSM_PARAM_NAME: !Ref SsmParamName
+      Events:
+        Schedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(5 minutes)
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:PutParameter
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SsmParamName}"

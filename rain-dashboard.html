@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Rain Alert — Live Forecast</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;
+    --page-plane: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --gridline: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --series-1: #256abf;
+    --status-good: #0ca30c;
+    --status-warning: #fab219;
+    --status-critical: #d03b3b;
+  }
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      --surface-1: #1a1a19;
+      --page-plane: #0d0d0d;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --gridline: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --series-1: #3987e5;
+      --status-good: #0ca30c;
+      --status-warning: #fab219;
+      --status-critical: #d03b3b;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --page-plane: #0d0d0d;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --gridline: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --series-1: #3987e5;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page-plane);
+    color: var(--text-primary);
+  }
+  .viz-root { min-height: 100vh; padding: 24px 16px 48px; }
+  .container { max-width: 760px; margin: 0 auto; }
+
+  .header-row {
+    display: flex; flex-wrap: wrap; align-items: flex-start;
+    justify-content: space-between; gap: 12px; margin-bottom: 20px;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .subtitle { color: var(--text-secondary); font-size: 13px; margin: 0; }
+  .location-badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 999px; padding: 7px 14px 7px 12px; flex: none;
+  }
+  .location-badge svg { flex: none; color: var(--series-1); }
+  .location-badge span { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+
+  .filters {
+    display: flex; flex-wrap: wrap; align-items: end; gap: 12px;
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--text-secondary); }
+  .field input {
+    font: inherit; font-size: 13px; padding: 6px 8px; width: 110px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--page-plane); color: var(--text-primary);
+  }
+  .field input.city { width: 170px; }
+  button {
+    font: inherit; font-size: 13px; padding: 7px 14px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--page-plane);
+    color: var(--text-primary); cursor: pointer;
+  }
+  button:hover { background: var(--gridline); }
+  .filters .spacer { flex: 1; }
+  .caption { font-size: 12px; color: var(--text-muted); }
+
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 20px; margin-bottom: 16px;
+  }
+
+  .stat-tile { display: flex; align-items: center; gap: 16px; }
+  .stat-icon {
+    width: 44px; height: 44px; border-radius: 10px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .stat-value { font-size: 32px; font-weight: 600; line-height: 1.1; }
+  .stat-label { font-size: 13px; color: var(--text-secondary); margin-bottom: 2px; }
+  .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  .chart-title { font-size: 13px; color: var(--text-secondary); margin: 0 0 12px; }
+  .bar-wrap { position: relative; }
+  .bar-hit { cursor: pointer; }
+  .bar-hit:focus { outline: 2px solid var(--series-1); outline-offset: 2px; }
+  .tick-label { fill: var(--text-muted); font-size: 10px; }
+  .axis-line { stroke: var(--baseline); stroke-width: 1; }
+  .grid-line { stroke: var(--gridline); stroke-width: 1; }
+  .threshold-line { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 3 3; }
+  .bar-label { fill: var(--text-primary); font-size: 11px; font-weight: 600; }
+
+  .tooltip {
+    position: absolute; pointer-events: none; background: var(--text-primary);
+    color: var(--surface-1); font-size: 12px; padding: 6px 9px; border-radius: 6px;
+    transform: translate(-50%, -100%); white-space: nowrap; z-index: 5;
+  }
+  .tooltip .val { font-weight: 700; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table th, table td {
+    text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--gridline);
+    font-variant-numeric: tabular-nums;
+  }
+  table th { color: var(--text-secondary); font-weight: 500; }
+
+  .error-box { color: var(--status-critical); font-size: 13px; }
+  footer { font-size: 12px; color: var(--text-muted); margin-top: 20px; }
+  footer a { color: inherit; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useCallback, useMemo } = React;
+
+const LOOKAHEAD_MIN = 45;    // mirrors rain-alert.env
+const MIN_PRECIP_MM = 0.1;   // mirrors rain-alert.env
+const COOLDOWN_HOURS = 3;    // mirrors rain-alert.env
+const CHART_HOURS = 6;
+const REFRESH_MS = 5 * 60 * 1000;
+
+function niceMax(value) {
+  const steps = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20];
+  for (const s of steps) if (value <= s) return s;
+  return Math.ceil(value / 10) * 10;
+}
+
+async function geocodeCity(query) {
+  const params = new URLSearchParams({ name: query, count: "1", language: "en", format: "json" });
+  const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?${params}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  const hit = data.results && data.results[0];
+  if (!hit) throw new Error("No matching city found");
+  const label = [hit.name, hit.admin1, hit.country].filter(Boolean).join(", ");
+  return { lat: hit.latitude, lon: hit.longitude, label };
+}
+
+function useForecast(lat, lon) {
+  const [state, setState] = useState({ status: "loading", slots: [], error: null, updatedAt: null });
+
+  const load = useCallback(async () => {
+    setState((s) => ({ ...s, status: s.slots.length ? "refreshing" : "loading", error: null }));
+    try {
+      const params = new URLSearchParams({
+        latitude: lat,
+        longitude: lon,
+        minutely_15: "precipitation",
+        timezone: "UTC",
+        forecast_days: "2",
+      });
+      const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const times = data.minutely_15.time;
+      const precip = data.minutely_15.precipitation;
+      const slots = times.map((t, i) => ({ time: new Date(`${t}Z`), precip: precip[i] }));
+      setState({ status: "ready", slots, error: null, updatedAt: new Date() });
+    } catch (err) {
+      setState((s) => ({ ...s, status: "error", error: err.message }));
+    }
+  }, [lat, lon]);
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, REFRESH_MS);
+    return () => clearInterval(id);
+  }, [load]);
+
+  return { ...state, reload: load };
+}
+
+function findAlert(slots, now) {
+  const cutoff = new Date(now.getTime() + LOOKAHEAD_MIN * 60000);
+  return slots.find((s) => s.time >= now && s.time <= cutoff && s.precip >= MIN_PRECIP_MM) || null;
+}
+
+function StatTile({ status, alert }) {
+  let tone = "good", label = "No rain expected", value = `Next ${LOOKAHEAD_MIN} min clear`, sub = "";
+
+  if (status === "loading") {
+    label = "Checking forecast"; value = "…"; tone = "good";
+  } else if (status === "error") {
+    label = "Forecast unavailable"; value = "—"; tone = "critical";
+  } else if (alert) {
+    const minutesAway = Math.max(0, Math.round((alert.time - new Date()) / 60000));
+    tone = minutesAway <= 15 ? "critical" : "warning";
+    label = "Rain incoming";
+    value = `${minutesAway} min`;
+    sub = `~${alert.time.toISOString().slice(11, 16)} UTC · ${alert.precip.toFixed(2)}mm expected`;
+  } else {
+    sub = `Below the ${MIN_PRECIP_MM}mm alert threshold`;
+  }
+
+  const toneColor = `var(--status-${tone})`;
+
+  return (
+    <div className="card stat-tile">
+      <div className="stat-icon" style={{ background: toneColor, opacity: 0.15 }} />
+      <div>
+        <div className="stat-label">{label}</div>
+        <div className="stat-value" style={{ color: tone === "good" ? "var(--text-primary)" : toneColor }}>
+          {value}
+        </div>
+        {sub && <div className="stat-sub">{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+function BarChart({ slots, alert }) {
+  const [hover, setHover] = useState(null);
+  const width = 700, height = 220;
+  const padL = 34, padR = 10, padT = 10, padB = 24;
+  const plotW = width - padL - padR, plotH = height - padT - padB;
+
+  const maxPrecip = Math.max(MIN_PRECIP_MM, ...slots.map((s) => s.precip), 0);
+  const yMax = niceMax(maxPrecip * 1.15);
+
+  const slotW = plotW / Math.max(slots.length, 1);
+  const barW = Math.min(24, slotW - 4);
+
+  const yFor = (v) => padT + plotH - (v / yMax) * plotH;
+  const thresholdY = yFor(MIN_PRECIP_MM);
+
+  return (
+    <div className="bar-wrap">
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" role="img" aria-label="Precipitation forecast bar chart">
+        {[0, 0.5, 1].map((f) => (
+          <line key={f} className="grid-line" x1={padL} x2={width - padR}
+                y1={padT + plotH * (1 - f)} y2={padT + plotH * (1 - f)} />
+        ))}
+        {[0, 0.5, 1].map((f) => (
+          <text key={f} className="tick-label" x={padL - 6} y={padT + plotH * (1 - f) + 3} textAnchor="end">
+            {(yMax * f).toFixed(2)}
+          </text>
+        ))}
+        <line className="threshold-line" x1={padL} x2={width - padR} y1={thresholdY} y2={thresholdY} />
+        <text className="tick-label" x={width - padR} y={thresholdY - 4} textAnchor="end">
+          alert threshold ({MIN_PRECIP_MM}mm)
+        </text>
+        <line className="axis-line" x1={padL} x2={width - padR} y1={padT + plotH} y2={padT + plotH} />
+
+        {slots.map((s, i) => {
+          const x = padL + i * slotW + (slotW - barW) / 2;
+          const barH = (s.precip / yMax) * plotH;
+          const y = padT + plotH - barH;
+          const isAlert = alert && s.time.getTime() === alert.time.getTime();
+          const overThreshold = s.precip >= MIN_PRECIP_MM;
+          let fill = "var(--series-1)";
+          if (overThreshold) {
+            const minutesAway = (s.time - new Date()) / 60000;
+            fill = minutesAway <= 15 ? "var(--status-critical)" : "var(--status-warning)";
+          }
+          const showHour = s.time.getUTCMinutes() === 0;
+          return (
+            <g key={s.time.toISOString()}>
+              <rect
+                className="bar-hit"
+                x={x} y={y} width={barW} height={Math.max(barH, 1)} rx="4"
+                fill={fill} opacity={hover === i ? 1 : 0.85}
+                tabIndex="0"
+                aria-label={`${s.time.toISOString().slice(11, 16)} UTC, ${s.precip.toFixed(2)} millimeters`}
+                onMouseEnter={() => setHover(i)}
+                onMouseLeave={() => setHover((h) => (h === i ? null : h))}
+                onFocus={() => setHover(i)}
+                onBlur={() => setHover((h) => (h === i ? null : h))}
+              />
+              {isAlert && (
+                <text className="bar-label" x={x + barW / 2} y={y - 6} textAnchor="middle">
+                  {s.precip.toFixed(2)}
+                </text>
+              )}
+              {showHour && (
+                <text className="tick-label" x={x + barW / 2} y={height - 6} textAnchor="middle">
+                  {s.time.toISOString().slice(11, 16)}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      {hover !== null && slots[hover] && (
+        <div
+          className="tooltip"
+          style={{
+            left: `${((padL + hover * slotW + slotW / 2) / width) * 100}%`,
+            top: `${(yFor(slots[hover].precip) / height) * 100}%`,
+          }}
+        >
+          {slots[hover].time.toISOString().slice(11, 16)} UTC ·{" "}
+          <span className="val">{slots[hover].precip.toFixed(2)}mm</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DataTable({ slots }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="card">
+      <button onClick={() => setOpen((o) => !o)}>
+        {open ? "Hide table view" : "Show table view"}
+      </button>
+      {open && (
+        <table style={{ marginTop: 12 }}>
+          <thead><tr><th>Time (UTC)</th><th>Precipitation (mm)</th></tr></thead>
+          <tbody>
+            {slots.map((s) => (
+              <tr key={s.time.toISOString()}>
+                <td>{s.time.toISOString().slice(11, 16)}</td>
+                <td>{s.precip.toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function App() {
+  const [lat, setLat] = useState("40.7128");
+  const [lon, setLon] = useState("-74.0060");
+  const [pendingLat, setPendingLat] = useState("40.7128");
+  const [pendingLon, setPendingLon] = useState("-74.0060");
+  const [placeName, setPlaceName] = useState("New York City, NY, United States");
+  const [cityQuery, setCityQuery] = useState("");
+  const [cityStatus, setCityStatus] = useState("idle");
+  const [cityError, setCityError] = useState(null);
+  const [theme, setTheme] = useState(
+    window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+  );
+
+  const { status, slots, error, updatedAt, reload } = useForecast(lat, lon);
+
+  const handleCitySearch = useCallback(async () => {
+    const query = cityQuery.trim();
+    if (!query) return;
+    setCityStatus("searching");
+    setCityError(null);
+    try {
+      const hit = await geocodeCity(query);
+      const newLat = String(hit.lat), newLon = String(hit.lon);
+      setLat(newLat);
+      setLon(newLon);
+      setPendingLat(newLat);
+      setPendingLon(newLon);
+      setPlaceName(hit.label);
+      setCityStatus("idle");
+    } catch (err) {
+      setCityStatus("error");
+      setCityError(err.message);
+    }
+  }, [cityQuery]);
+
+  const now = new Date();
+  const windowEnd = new Date(now.getTime() + CHART_HOURS * 3600000);
+  const windowSlots = useMemo(
+    () => slots.filter((s) => s.time >= now && s.time <= windowEnd),
+    [slots, now.getTime()]
+  );
+  const alert = useMemo(() => findAlert(slots, now), [slots, now.getTime()]);
+  const locationLabel = placeName || `Custom location · ${lat}, ${lon}`;
+
+  return (
+    <div className="viz-root" data-theme={theme}>
+      <div className="container">
+        <div className="header-row">
+          <div>
+            <h1>Rain Alert — Live Forecast</h1>
+            <p className="subtitle">
+              Preview of the same Open-Meteo check <code>rain_alert.py</code> runs every 5 minutes.
+            </p>
+          </div>
+          <div className="location-badge">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            <span>{locationLabel}</span>
+          </div>
+        </div>
+
+        <div className="filters">
+          <div className="field">
+            <label htmlFor="city">City</label>
+            <input
+              id="city"
+              className="city"
+              placeholder="e.g. Austin, TX"
+              value={cityQuery}
+              onChange={(e) => setCityQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); handleCitySearch(); }
+              }}
+            />
+          </div>
+          <button onClick={handleCitySearch} disabled={cityStatus === "searching"}>
+            {cityStatus === "searching" ? "Searching…" : "Find city"}
+          </button>
+          <div className="field">
+            <label htmlFor="lat">Latitude</label>
+            <input id="lat" value={pendingLat} onChange={(e) => setPendingLat(e.target.value)} />
+          </div>
+          <div className="field">
+            <label htmlFor="lon">Longitude</label>
+            <input id="lon" value={pendingLon} onChange={(e) => setPendingLon(e.target.value)} />
+          </div>
+          <button onClick={() => { setLat(pendingLat); setLon(pendingLon); setPlaceName(null); }}>
+            Update location
+          </button>
+          <button onClick={reload}>Refresh now</button>
+          <div className="spacer" />
+          <button onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}>
+            {theme === "dark" ? "Light mode" : "Dark mode"}
+          </button>
+        </div>
+        <p className="caption" style={{ marginTop: -10, marginBottom: 16 }}>
+          {cityStatus === "error"
+            ? `Couldn't find "${cityQuery}": ${cityError}`
+            : status === "error"
+            ? `Error: ${error}`
+            : updatedAt
+            ? `Last checked ${updatedAt.toLocaleTimeString()} · auto-refreshes every 5 min`
+            : "Loading…"}
+        </p>
+
+        <StatTile status={status} alert={alert} />
+
+        <div className="card">
+          <p className="chart-title">Precipitation forecast, next {CHART_HOURS}h (mm / 15 min)</p>
+          {status === "error" ? (
+            <p className="error-box">Couldn't load the forecast. Check your connection and try again.</p>
+          ) : (
+            <BarChart slots={windowSlots} alert={alert} />
+          )}
+        </div>
+
+        {status === "ready" && <DataTable slots={windowSlots} />}
+
+        <footer>
+          Data from <a href="https://open-meteo.com" target="_blank" rel="noreferrer">Open-Meteo</a>.
+          Threshold and lookahead mirror <code>rain-alert.env</code> defaults
+          ({MIN_PRECIP_MM}mm within {LOOKAHEAD_MIN} min).
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
