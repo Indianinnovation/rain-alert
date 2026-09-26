@@ -1,5 +1,6 @@
 # Rain Alert: Get Notified Before Rain Hits Your Plants
 
+[![Build Status](https://github.com/Indianinnovation/rain-alert/actions/workflows/ci.yml/badge.svg)](https://github.com/Indianinnovation/rain-alert/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Last Commit](https://img.shields.io/github/last-commit/Indianinnovation/rain-alert)](https://github.com/Indianinnovation/rain-alert/commits/main)
 [![Open Issues](https://img.shields.io/github/issues/Indianinnovation/rain-alert)](https://github.com/Indianinnovation/rain-alert/issues)
