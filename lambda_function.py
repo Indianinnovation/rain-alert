@@ -13,23 +13,26 @@ ssm = boto3.client("ssm")
 
 
 def get_forecast(lat, lon):
-    """Return a list of (datetime_utc, precipitation_mm) 15-minute slots."""
+    """Return ([(datetime_utc, precipitation_mm), ...], utc_offset_seconds, tz_abbreviation)."""
     params = {
         "latitude": lat,
         "longitude": lon,
         "minutely_15": "precipitation",
-        "timezone": "UTC",
+        "timezone": "auto",
         "forecast_days": 1,
     }
     url = f"{OPEN_METEO_URL}?{urllib.parse.urlencode(params)}"
     with urllib.request.urlopen(url, timeout=10) as resp:
         data = json.load(resp)
+    utc_offset = data.get("utc_offset_seconds", 0)
+    tz_abbr = data.get("timezone_abbreviation", "UTC")
     times = data["minutely_15"]["time"]
     precip = data["minutely_15"]["precipitation"]
-    return [
-        (datetime.strptime(t, "%Y-%m-%dT%H:%M").replace(tzinfo=timezone.utc), p)
+    slots = [
+        (datetime.strptime(t, "%Y-%m-%dT%H:%M").replace(tzinfo=timezone.utc) - timedelta(seconds=utc_offset), p)
         for t, p in zip(times, precip)
     ]
+    return slots, utc_offset, tz_abbr
 
 
 def find_rain(slots, lookahead_min, min_precip_mm, now):
@@ -68,6 +71,7 @@ def lambda_handler(event, context):
     lat = os.environ["LAT"]
     lon = os.environ["LON"]
     topic = os.environ["NTFY_TOPIC"]
+    location_name = os.environ.get("LOCATION_NAME") or f"{lat}, {lon}"
     lookahead_min = float(os.environ.get("LOOKAHEAD_MIN", 45))
     min_precip_mm = float(os.environ.get("MIN_PRECIP_MM", 0.1))
     cooldown_hours = float(os.environ.get("COOLDOWN_HOURS", 3))
@@ -76,7 +80,7 @@ def lambda_handler(event, context):
     now = datetime.now(timezone.utc)
 
     try:
-        slots = get_forecast(lat, lon)
+        slots, utc_offset, tz_abbr = get_forecast(lat, lon)
     except Exception as e:
         result = {"error": f"forecast fetch failed: {e}"}
         print(json.dumps(result))
@@ -97,7 +101,11 @@ def lambda_handler(event, context):
         return result
 
     minutes_away = round((rain_time - now).total_seconds() / 60)
-    message = f"Rain expected around {rain_time.strftime('%H:%M UTC')} (in ~{minutes_away} min, {precip}mm). Cover your plants!"
+    local_time = rain_time + timedelta(seconds=utc_offset)
+    message = (
+        f"Rain expected in {location_name} around {local_time.strftime('%H:%M')} {tz_abbr} "
+        f"(in ~{minutes_away} min, {precip}mm). Cover your plants!"
+    )
 
     try:
         send_ntfy(topic, message, title="Rain incoming")

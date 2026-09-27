@@ -137,6 +137,7 @@ All settings are environment variables in the `.env` file.
 |---|---|---|---|
 | `LAT`, `LON` | Yes | — | Your garden's coordinates. Long-press the spot in Google Maps to get them. |
 | `NTFY_TOPIC` | Yes | — | Your ntfy topic name. |
+| `LOCATION_NAME` | No | lat/lon | Human-readable place name included in the alert message (for example `New York City, NY`). |
 | `OWM_API_KEY` | OWM only | — | OpenWeatherMap API key. |
 | `LOOKAHEAD_MIN` | No | `45` | How many minutes ahead to look for rain. Maximum 60 for OpenWeatherMap. |
 | `MIN_PRECIP_MM` | No | `0.1` (Open-Meteo), `0.3` (OWM) | Rain threshold. Open-Meteo: mm per 15-minute slot. OpenWeatherMap: intensity in mm/h. |

@@ -12,6 +12,10 @@ Parameters:
   NtfyTopic:
     Type: String
     Description: ntfy.sh topic to publish alerts to.
+  LocationName:
+    Type: String
+    Default: ""
+    Description: Human-readable place name included in the alert message.
   LookaheadMin:
     Type: Number
     Default: 45
@@ -38,6 +42,7 @@ Resources:
           LAT: !Ref Lat
           LON: !Ref Lon
           NTFY_TOPIC: !Ref NtfyTopic
+          LOCATION_NAME: !Ref LocationName
           LOOKAHEAD_MIN: !Ref LookaheadMin
           MIN_PRECIP_MM: !Ref MinPrecipMm
           COOLDOWN_HOURS: !Ref CooldownHours
