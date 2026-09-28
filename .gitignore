@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 .rain-alert-last
 .rain-alert-owm-last
+log.txt
